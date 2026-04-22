@@ -36,6 +36,8 @@ func ConnectDB() {
 		&models.OrderItem{},
 		&models.Review{},
 		&models.TrackingUpdate{},
+		&models.Doctor{}, // ✅ add
+		&models.Appointment{},
 	)
 	if err != nil {
 		log.Fatal("❌ AutoMigrate failed:", err)

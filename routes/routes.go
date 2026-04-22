@@ -26,6 +26,10 @@ func SetupRoutes() *gin.Engine {
 		auth.POST("/login", handlers.Login)
 		auth.POST("/forgot-password/send-otp", handlers.SendForgotPasswordOTP) // ✅ add
 		auth.POST("/forgot-password/reset", handlers.VerifyOTPAndResetPassword)
+		public.GET("/doctors", handlers.GetDoctors)
+		public.GET("/doctors/:id", handlers.GetDoctorByID)
+		public.GET("/doctors/:id/booked-slots", handlers.GetBookedSlots)
+
 	}
 
 	// Protected routes
@@ -66,6 +70,10 @@ func SetupRoutes() *gin.Engine {
 		api.GET("/coupons", handlers.GetActiveCoupons)
 		api.POST("/coupons", handlers.CreateCoupon) // admin
 		api.PUT("/orders/:id/cancel", handlers.CancelOrder)
+
+		api.POST("/appointments", handlers.BookAppointment)
+		api.GET("/appointments/my", handlers.GetMyAppointments)
+		api.PUT("/appointments/:id/cancel", handlers.CancelAppointment)
 	}
 
 	fmt.Println("✅ Routes registered including PATCH cancel")
