@@ -26,12 +26,16 @@ func SetupRoutes() *gin.Engine {
 		auth.POST("/login", handlers.Login)
 		auth.POST("/forgot-password/send-otp", handlers.SendForgotPasswordOTP) // ✅ add
 		auth.POST("/forgot-password/reset", handlers.VerifyOTPAndResetPassword)
-		public.GET("/doctors", handlers.GetDoctors)
-		public.GET("/doctors/:id", handlers.GetDoctorByID)
-		public.GET("/doctors/:id/booked-slots", handlers.GetBookedSlots)
 
 	}
 
+	// Public routes
+	public := r.Group("/api")
+	{
+		public.GET("/doctors", handlers.GetDoctors)
+		public.GET("/doctors/:id", handlers.GetDoctorByID)
+		public.GET("/doctors/:id/booked-slots", handlers.GetBookedSlots)
+	}
 	// Protected routes
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware())
