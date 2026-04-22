@@ -1,8 +1,9 @@
-package config
+package confi
 
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"pharmeasy-backend/models"
 
@@ -14,7 +15,10 @@ import (
 var DB *gorm.DB
 
 func ConnectDB() {
-	dsn := "host=localhost user=postgres password=root dbname=pharmeasy port=5432 sslmode=disable"
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "host=localhost user=postgres password=root dbname=pharmeasy port=5432 sslmode=disable"
+	}
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
@@ -26,8 +30,8 @@ func ConnectDB() {
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.Medicine{},
-		&models.Coupon{},      // ✅ moved before Order
-		&models.CouponUsage{}, // ✅ moved before Order
+		&models.Coupon{},
+		&models.CouponUsage{},
 		&models.Order{},
 		&models.OrderItem{},
 		&models.Review{},
