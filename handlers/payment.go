@@ -105,7 +105,6 @@ func VerifyPayment(c *gin.Context) {
 	expectedSignature := hex.EncodeToString(h.Sum(nil))
 
 	if expectedSignature != input.RazorpaySignature {
-		// ✅ Save failed payment record
 		userID := c.GetUint("user_id")
 		config.DB.Create(&models.Payment{
 			UserID:            userID,
@@ -119,6 +118,42 @@ func VerifyPayment(c *gin.Context) {
 	}
 
 	PlaceOrderAfterPayment(c, input.Address, input.Items, input.RazorpayOrderID, input.RazorpayPaymentID)
+}
+
+// fetchRazorpayMethod calls Razorpay's API to get the actual payment method (card, upi, netbanking, wallet)
+func fetchRazorpayMethod(paymentID string) string {
+	req, err := http.NewRequest(
+		"GET",
+		fmt.Sprintf("https://api.razorpay.com/v1/payments/%s", paymentID),
+		nil,
+	)
+	if err != nil {
+		fmt.Println("⚠️ Could not build Razorpay fetch request:", err)
+		return "razorpay"
+	}
+
+	req.SetBasicAuth(razorpayKeyID, razorpayKeySecret)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("⚠️ Could not reach Razorpay to fetch method:", err)
+		return "razorpay"
+	}
+	defer resp.Body.Close()
+
+	var payDetails map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&payDetails); err != nil {
+		fmt.Println("⚠️ Could not decode Razorpay payment details:", err)
+		return "razorpay"
+	}
+
+	if method, ok := payDetails["method"].(string); ok && method != "" {
+		fmt.Println("💳 Razorpay payment method:", method)
+		return method // "card", "upi", "netbanking", "wallet", "emi"
+	}
+
+	return "razorpay"
 }
 
 func PlaceOrderAfterPayment(
@@ -179,7 +214,10 @@ func PlaceOrderAfterPayment(
 		return
 	}
 
-	// ✅ Save successful payment record
+	// ✅ Fetch real payment method from Razorpay (card / upi / netbanking / wallet)
+	method := fetchRazorpayMethod(paymentID)
+
+	// ✅ Save successful payment record with correct method
 	config.DB.Create(&models.Payment{
 		UserID:            userID,
 		OrderID:           order.ID,
@@ -187,15 +225,16 @@ func PlaceOrderAfterPayment(
 		RazorpayPaymentID: paymentID,
 		Amount:            total,
 		Status:            "success",
-		Method:            "razorpay",
+		Method:            method,
 	})
 
-	fmt.Println("✅ Order placed! ID:", order.ID)
+	fmt.Println("✅ Order placed! ID:", order.ID, "| Method:", method)
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Payment successful! Order placed.",
 		"payment_id": paymentID,
 		"order_id":   order.ID,
 		"total":      total,
+		"method":     method,
 	})
 }
 
