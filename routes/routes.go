@@ -68,6 +68,7 @@ func SetupRoutes() *gin.Engine {
 		// Payment
 		api.POST("/payment/create-order", handlers.CreatePaymentOrder)
 		api.POST("/payment/verify", handlers.VerifyPayment)
+		api.GET("/payment/history", handlers.GetPaymentHistory)
 
 		// Inside protected api group:
 		api.POST("/coupons/validate", handlers.ValidateCoupon)

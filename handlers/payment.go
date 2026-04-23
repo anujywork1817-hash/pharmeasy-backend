@@ -33,7 +33,6 @@ func CreatePaymentOrder(c *gin.Context) {
 	}
 
 	fmt.Println("💳 Creating Razorpay order for user:", userID, "amount:", input.Amount)
-	fmt.Println("🔑 Key ID:", razorpayKeyID)
 
 	orderData := map[string]interface{}{
 		"amount":          input.Amount,
@@ -43,7 +42,6 @@ func CreatePaymentOrder(c *gin.Context) {
 	}
 
 	jsonData, _ := json.Marshal(orderData)
-
 	req, err := http.NewRequest(
 		"POST",
 		"https://api.razorpay.com/v1/orders",
@@ -60,7 +58,6 @@ func CreatePaymentOrder(c *gin.Context) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("❌ Razorpay API error:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to contact Razorpay"})
 		return
 	}
@@ -68,7 +65,6 @@ func CreatePaymentOrder(c *gin.Context) {
 
 	var razorpayOrder map[string]interface{}
 	json.NewDecoder(resp.Body).Decode(&razorpayOrder)
-	fmt.Println("📬 Razorpay response:", razorpayOrder)
 
 	if razorpayOrder["error"] != nil {
 		errMap := razorpayOrder["error"].(map[string]interface{})
@@ -77,7 +73,6 @@ func CreatePaymentOrder(c *gin.Context) {
 	}
 
 	fmt.Println("✅ Razorpay order created:", razorpayOrder["id"])
-
 	c.JSON(http.StatusOK, gin.H{
 		"order_id": razorpayOrder["id"],
 		"amount":   razorpayOrder["amount"],
@@ -109,14 +104,21 @@ func VerifyPayment(c *gin.Context) {
 	h.Write([]byte(data))
 	expectedSignature := hex.EncodeToString(h.Sum(nil))
 
-	fmt.Println("🔐 Signature match:", expectedSignature == input.RazorpaySignature)
-
 	if expectedSignature != input.RazorpaySignature {
+		// ✅ Save failed payment record
+		userID := c.GetUint("user_id")
+		config.DB.Create(&models.Payment{
+			UserID:            userID,
+			RazorpayOrderID:   input.RazorpayOrderID,
+			RazorpayPaymentID: input.RazorpayPaymentID,
+			Status:            "failed",
+			Method:            "razorpay",
+		})
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Payment verification failed"})
 		return
 	}
 
-	PlaceOrderAfterPayment(c, input.Address, input.Items, input.RazorpayPaymentID)
+	PlaceOrderAfterPayment(c, input.Address, input.Items, input.RazorpayOrderID, input.RazorpayPaymentID)
 }
 
 func PlaceOrderAfterPayment(
@@ -126,10 +128,10 @@ func PlaceOrderAfterPayment(
 		MedicineID uint `json:"medicine_id"`
 		Quantity   int  `json:"quantity"`
 	},
+	razorpayOrderID string,
 	paymentID string,
 ) {
 	userID := c.GetUint("user_id")
-	fmt.Println("📦 Placing order after payment for user:", userID)
 
 	var orderItems []models.OrderItem
 	var total float64
@@ -177,12 +179,38 @@ func PlaceOrderAfterPayment(
 		return
 	}
 
-	fmt.Println("✅ Order placed! ID:", order.ID)
+	// ✅ Save successful payment record
+	config.DB.Create(&models.Payment{
+		UserID:            userID,
+		OrderID:           order.ID,
+		RazorpayOrderID:   razorpayOrderID,
+		RazorpayPaymentID: paymentID,
+		Amount:            total,
+		Status:            "success",
+		Method:            "razorpay",
+	})
 
+	fmt.Println("✅ Order placed! ID:", order.ID)
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Payment successful! Order placed.",
 		"payment_id": paymentID,
 		"order_id":   order.ID,
 		"total":      total,
 	})
+}
+
+// ── Get Payment History ────────────────────────────────────────────────────
+func GetPaymentHistory(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	fmt.Println("💳 Fetching payment history for user:", userID)
+
+	var payments []models.Payment
+	result := config.DB.
+		Preload("Order.Items.Medicine").
+		Where("user_id = ?", userID).
+		Order("created_at desc").
+		Find(&payments)
+
+	fmt.Println("💳 Payments found:", result.RowsAffected)
+	c.JSON(http.StatusOK, payments)
 }
