@@ -8,6 +8,9 @@ import (
 type Doctor struct {
 	gorm.Model
 	Name              string         `json:"name"`
+	Email             string         `json:"email" gorm:"uniqueIndex"`
+	Password          string         `json:"-"`
+	Phone             string         `json:"phone"`
 	Specialty         string         `json:"specialty"`
 	Location          string         `json:"location"`
 	Rating            float64        `json:"rating"`
@@ -20,6 +23,9 @@ type Doctor struct {
 	AvailableSlots    pq.StringArray `json:"available_slots" gorm:"type:text[]"`
 	About             string         `json:"about"`
 	Qualifications    pq.StringArray `json:"qualifications" gorm:"type:text[]"`
+	IsVerified        bool           `json:"is_verified"`
+	BankAccount       string         `json:"bank_account"`
+	UpiID             string         `json:"upi_id"`
 }
 
 type Appointment struct {
@@ -31,8 +37,10 @@ type Appointment struct {
 	Date         string `json:"date"`
 	TimeSlot     string `json:"time_slot"`
 	ConsultType  string `json:"consult_type"`
-	Status       string `json:"status"` // pending, confirmed, cancelled
+	Status       string `json:"status"`
 	PatientName  string `json:"patient_name"`
 	PatientPhone string `json:"patient_phone"`
 	Notes        string `json:"notes"`
+	DoctorNotes  string `json:"doctor_notes"`
+	Prescription string `json:"prescription"`
 }

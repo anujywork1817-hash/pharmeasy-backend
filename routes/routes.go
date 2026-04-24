@@ -79,6 +79,26 @@ func SetupRoutes() *gin.Engine {
 		api.POST("/appointments", handlers.BookAppointment)
 		api.GET("/appointments/my", handlers.GetMyAppointments)
 		api.PUT("/appointments/:id/cancel", handlers.CancelAppointment)
+		// Doctor auth (public)
+		doctorAuth := r.Group("/api/doctor/auth")
+		{
+			doctorAuth.POST("/register", handlers.DoctorRegister)
+			doctorAuth.POST("/login", handlers.DoctorLogin)
+		}
+
+		// Doctor protected routes
+		doctorAPI := r.Group("/api/doctor")
+		doctorAPI.Use(middleware.DoctorAuthMiddleware())
+		{
+			doctorAPI.GET("/profile", handlers.DoctorGetProfile)
+			doctorAPI.PUT("/profile", handlers.DoctorUpdateProfile)
+			doctorAPI.GET("/appointments/today", handlers.DoctorGetTodayAppointments)
+			doctorAPI.GET("/appointments", handlers.DoctorGetAllAppointments)
+			doctorAPI.PUT("/appointments/:id", handlers.DoctorUpdateAppointment)
+			doctorAPI.GET("/earnings", handlers.DoctorGetEarnings)
+			doctorAPI.PUT("/availability", handlers.DoctorUpdateAvailability)
+			doctorAPI.GET("/reviews", handlers.DoctorGetReviews)
+		}
 	}
 
 	fmt.Println("✅ Routes registered including PATCH cancel")
