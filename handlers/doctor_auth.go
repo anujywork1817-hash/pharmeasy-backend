@@ -191,35 +191,3 @@ func DoctorUpdateProfile(c *gin.Context) {
 		"doctor":  doctor,
 	})
 }
-
-func DoctorUpdateAvailability(c *gin.Context) {
-	doctorID := c.GetUint("doctor_id")
-
-	var input struct {
-		IsAvailable bool `json:"is_available"`
-	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	if err := config.DB.Model(&models.Doctor{}).
-		Where("id = ?", doctorID).
-		Update("is_available_today", input.IsAvailable).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update availability"})
-		return
-	}
-
-	status := "unavailable"
-	if input.IsAvailable {
-		status = "available"
-	}
-
-	fmt.Println("✅ Doctor availability updated:", doctorID, "->", status)
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":      "Availability updated successfully",
-		"is_available": input.IsAvailable,
-	})
-}
