@@ -120,11 +120,16 @@ func DoctorUpdateProfile(c *gin.Context) {
 	doctorID := c.GetUint("doctor_id")
 
 	var input struct {
-		About       string `json:"about"`
-		Fee         int    `json:"fee"`
-		Location    string `json:"location"`
-		UpiID       string `json:"upi_id"`
-		BankAccount string `json:"bank_account"`
+		Name             string `json:"name"`
+		Phone            string `json:"phone"`
+		Specialty        string `json:"specialty"`
+		Experience       int    `json:"experience"`
+		About            string `json:"about"`
+		Fee              int    `json:"fee"`
+		Location         string `json:"location"`
+		UpiID            string `json:"upi_id"`
+		BankAccount      string `json:"bank_account"`
+		IsAvailableToday bool   `json:"is_available_today"`
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -132,6 +137,89 @@ func DoctorUpdateProfile(c *gin.Context) {
 		return
 	}
 
-	config.DB.Model(&models.Doctor{}).Where("id = ?", doctorID).Updates(input)
-	c.JSON(http.StatusOK, gin.H{"message": "Profile updated"})
+	// Build updates map so zero-value bools still get saved
+	updates := map[string]interface{}{
+		"is_available_today": input.IsAvailableToday,
+	}
+
+	if input.Name != "" {
+		updates["name"] = input.Name
+	}
+	if input.Phone != "" {
+		updates["phone"] = input.Phone
+	}
+	if input.Specialty != "" {
+		updates["specialty"] = input.Specialty
+	}
+	if input.Experience > 0 {
+		updates["experience"] = input.Experience
+	}
+	if input.About != "" {
+		updates["about"] = input.About
+	}
+	if input.Fee > 0 {
+		updates["fee"] = input.Fee
+	}
+	if input.Location != "" {
+		updates["location"] = input.Location
+	}
+	if input.UpiID != "" {
+		updates["upi_id"] = input.UpiID
+	}
+	if input.BankAccount != "" {
+		updates["bank_account"] = input.BankAccount
+	}
+
+	if err := config.DB.Model(&models.Doctor{}).
+		Where("id = ?", doctorID).
+		Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		return
+	}
+
+	// Return updated doctor
+	var doctor models.Doctor
+	if err := config.DB.First(&doctor, doctorID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch updated profile"})
+		return
+	}
+
+	fmt.Println("✅ Doctor profile updated:", doctor.Email)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Profile updated successfully",
+		"doctor":  doctor,
+	})
+}
+
+func DoctorUpdateAvailability(c *gin.Context) {
+	doctorID := c.GetUint("doctor_id")
+
+	var input struct {
+		IsAvailable bool `json:"is_available"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := config.DB.Model(&models.Doctor{}).
+		Where("id = ?", doctorID).
+		Update("is_available_today", input.IsAvailable).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update availability"})
+		return
+	}
+
+	status := "unavailable"
+	if input.IsAvailable {
+		status = "available"
+	}
+
+	fmt.Println("✅ Doctor availability updated:", doctorID, "->", status)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "Availability updated successfully",
+		"is_available": input.IsAvailable,
+	})
 }
