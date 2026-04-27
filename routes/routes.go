@@ -101,6 +101,8 @@ func SetupRoutes() *gin.Engine {
 		doctorAPI.GET("/earnings", handlers.DoctorGetEarnings)
 		doctorAPI.PUT("/availability", handlers.DoctorUpdateAvailability)
 		doctorAPI.GET("/reviews", handlers.DoctorGetReviews)
+		doctorAPI.POST("/prescriptions", handlers.DoctorSavePrescription)
+		doctorAPI.GET("/prescriptions", handlers.DoctorGetPrescriptions)
 	}
 
 	fmt.Println("✅ Routes registered including PATCH cancel")

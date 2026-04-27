@@ -64,7 +64,7 @@ func BookAppointment(c *gin.Context) {
 		return
 	}
 
-	// ✅ Check if slot already booked
+	// Check if slot already booked
 	var existing models.Appointment
 	if err := config.DB.Where(
 		"doctor_id = ? AND date = ? AND time_slot = ? AND status != ?",

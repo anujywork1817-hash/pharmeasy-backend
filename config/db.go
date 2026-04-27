@@ -38,6 +38,8 @@ func ConnectDB() {
 		&models.TrackingUpdate{},
 		&models.Doctor{}, // ✅ add
 		&models.Appointment{},
+		&models.DoctorPrescription{}, // ✅ ADD THIS
+
 	)
 	if err != nil {
 		log.Fatal("❌ AutoMigrate failed:", err)
