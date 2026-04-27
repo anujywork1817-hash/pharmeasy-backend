@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"pharmeasy-backend/config"
 	"pharmeasy-backend/models"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -116,9 +118,109 @@ func DoctorGetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, doctor)
 }
 
+// ✅ FIXED: Now accepts multipart/form-data so profile image can be uploaded
 func DoctorUpdateProfile(c *gin.Context) {
 	doctorID := c.GetUint("doctor_id")
 
+	// Parse multipart form (max 10 MB)
+	if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
+		// Not multipart — fall back to JSON
+		doctorUpdateProfileJSON(c, doctorID)
+		return
+	}
+
+	updates := map[string]interface{}{}
+
+	// ── Text fields ──────────────────────────────────────────────────────────
+	if v := c.PostForm("name"); v != "" {
+		updates["name"] = v
+	}
+	if v := c.PostForm("phone"); v != "" {
+		updates["phone"] = v
+	}
+	if v := c.PostForm("specialty"); v != "" {
+		updates["specialty"] = v
+	}
+	if v := c.PostForm("about"); v != "" {
+		updates["about"] = v
+	}
+	if v := c.PostForm("location"); v != "" {
+		updates["location"] = v
+	}
+	if v := c.PostForm("upi_id"); v != "" {
+		updates["upi_id"] = v
+	}
+	if v := c.PostForm("bank_account"); v != "" {
+		updates["bank_account"] = v
+	}
+	if v := c.PostForm("experience"); v != "" {
+		if exp, err := strconv.Atoi(v); err == nil && exp > 0 {
+			updates["experience"] = exp
+		}
+	}
+	if v := c.PostForm("fee"); v != "" {
+		if fee, err := strconv.Atoi(v); err == nil && fee > 0 {
+			updates["fee"] = fee
+		}
+	}
+	if v := c.PostForm("is_available_today"); v != "" {
+		updates["is_available_today"] = v == "true"
+	}
+
+	// ── Profile image ─────────────────────────────────────────────────────────
+	file, header, err := c.Request.FormFile("profile_image")
+	if err == nil {
+		defer file.Close()
+
+		// Make sure uploads dir exists
+		uploadDir := "./uploads/doctors"
+		if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
+			return
+		}
+
+		// Unique filename: doctorID_timestamp.ext
+		ext := filepath.Ext(header.Filename)
+		filename := fmt.Sprintf("%d_%d%s", doctorID, time.Now().Unix(), ext)
+		savePath := filepath.Join(uploadDir, filename)
+
+		if err := c.SaveUploadedFile(header, savePath); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save image"})
+			return
+		}
+
+		// Store public URL path
+		updates["profile_image"] = fmt.Sprintf("/uploads/doctors/%s", filename)
+	}
+
+	if len(updates) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No fields to update"})
+		return
+	}
+
+	if err := config.DB.Model(&models.Doctor{}).
+		Where("id = ?", doctorID).
+		Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
+		return
+	}
+
+	var doctor models.Doctor
+	if err := config.DB.First(&doctor, doctorID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch updated profile"})
+		return
+	}
+
+	fmt.Println("✅ Doctor profile updated:", doctor.Email)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Profile updated successfully",
+		"doctor":  doctor,
+	})
+}
+
+// Fallback: original JSON-only update (no image)
+func doctorUpdateProfileJSON(c *gin.Context, doctorID uint) {
 	var input struct {
 		Name             string `json:"name"`
 		Phone            string `json:"phone"`
@@ -137,11 +239,9 @@ func DoctorUpdateProfile(c *gin.Context) {
 		return
 	}
 
-	// Build updates map so zero-value bools still get saved
 	updates := map[string]interface{}{
 		"is_available_today": input.IsAvailableToday,
 	}
-
 	if input.Name != "" {
 		updates["name"] = input.Name
 	}
@@ -177,7 +277,6 @@ func DoctorUpdateProfile(c *gin.Context) {
 		return
 	}
 
-	// Return updated doctor
 	var doctor models.Doctor
 	if err := config.DB.First(&doctor, doctorID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch updated profile"})
